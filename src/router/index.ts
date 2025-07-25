@@ -17,6 +17,7 @@ const routes = [
 
 const router = createRouter({
   history: createWebHistory('/imgweb/'),
+  // history: createWebHistory(''),
   routes
 })
 

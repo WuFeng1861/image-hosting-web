@@ -19,8 +19,9 @@ const i18n = createI18n({
 const pinia = createPinia()
 
 // 创建应用并挂载
+// pinia 必须先装：路由守卫里会用到 useAuthStore()
 createApp(App)
-  .use(router)
-  .use(i18n)
   .use(pinia)
+  .use(i18n)
+  .use(router)
   .mount('#app')

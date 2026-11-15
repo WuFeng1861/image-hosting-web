@@ -13,7 +13,6 @@ const imageStore = useImageStore()
 const files = ref<File[]>([])
 const dragActive = ref(false)
 const uploading = ref(false)
-const adminPassword = ref('')
 const uploadSuccess = ref(false)
 const uploadedUrls = ref<string[]>([])
 const showUploadResult = ref(false)
@@ -98,10 +97,7 @@ async function uploadFiles() {
   
   try {
     // 调用存储的上传方法
-    const result = await imageStore.uploadImages(
-      files.value, 
-      hasLargeFile.value ? adminPassword.value : undefined
-    )
+    const result = await imageStore.uploadImages(files.value)
     
     if (result.success) {
       uploadSuccess.value = true
@@ -109,7 +105,6 @@ async function uploadFiles() {
       showUploadResult.value = true
       // 上传成功后清空文件列表和密码
       files.value = []
-      adminPassword.value = ''
     }
   } catch (error) {
     console.error('Upload error:', error)
@@ -218,18 +213,6 @@ function closeUploadResult() {
           </div>
         </div>
         
-        <!-- 管理员密码输入框（如果有大文件） -->
-        <div v-if="hasLargeFile" class="mt-4">
-          <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-            {{ t('upload.adminPassword') }}
-          </label>
-          <input
-            v-model="adminPassword"
-            type="password"
-            class="input"
-          />
-        </div>
-        
         <!-- 操作按钮 -->
         <div class="flex justify-between mt-6">
           <button @click="clearFiles" class="btn-secondary">
@@ -238,8 +221,8 @@ function closeUploadResult() {
           <button 
             @click="uploadFiles" 
             class="btn-primary" 
-            :disabled="uploading || (hasLargeFile && !adminPassword)"
-            :class="{ 'opacity-70 cursor-not-allowed': uploading || (hasLargeFile && !adminPassword) }"
+            :disabled="uploading"
+            :class="{ 'opacity-70 cursor-not-allowed': uploading }"
           >
             <svg v-if="uploading" class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
               <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>

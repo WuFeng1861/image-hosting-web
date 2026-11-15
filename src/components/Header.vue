@@ -4,6 +4,7 @@ import { useThemeStore } from '../stores/themeStore'
 import { useI18n } from 'vue-i18n'
 import { languageOptions } from '../locales'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
 // 使用主题存储
 const themeStore = useThemeStore()
@@ -13,6 +14,14 @@ const { t, locale } = useI18n()
 
 // 使用路由
 const router = useRouter()
+
+// 管理员登录态
+const auth = useAuthStore()
+
+async function handleLogout() {
+  await auth.logout()
+  router.push('/login')
+}
 
 // 是否显示移动端菜单
 const isMobileMenuOpen = ref(false)
@@ -61,10 +70,31 @@ function navigateTo(path: string) {
           >
             {{ t('nav.gallery') }}
           </router-link>
+          <router-link
+            to="/ip-security"
+            class="text-gray-700 dark:text-gray-300 hover:text-primary-500 dark:hover:text-primary-400 transition"
+            active-class="text-primary-500 dark:text-primary-400 font-medium"
+          >
+            IP 名单
+          </router-link>
+          <router-link
+            to="/account"
+            class="text-gray-700 dark:text-gray-300 hover:text-primary-500 dark:hover:text-primary-400 transition"
+            active-class="text-primary-500 dark:text-primary-400 font-medium"
+          >
+            账号
+          </router-link>
         </nav>
 
         <!-- 桌面操作栏 -->
         <div class="hidden md:flex items-center space-x-4">
+          <span v-if="auth.username" class="text-sm text-gray-500 dark:text-gray-400">{{ auth.username }}</span>
+          <button
+            @click="handleLogout"
+            class="text-sm text-gray-600 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400"
+          >
+            退出
+          </button>
           <!-- 语言切换 -->
           <div class="relative inline-block text-left">
             <button
@@ -135,6 +165,18 @@ function navigateTo(path: string) {
             class="block w-full text-left px-3 py-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             {{ t('nav.gallery') }}
+          </button>
+          <button
+            @click="navigateTo('/ip-security')"
+            class="block w-full text-left px-3 py-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            IP 名单
+          </button>
+          <button
+            @click="navigateTo('/account')"
+            class="block w-full text-left px-3 py-2 rounded-md text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"
+          >
+            账号设置
           </button>
         </div>
 

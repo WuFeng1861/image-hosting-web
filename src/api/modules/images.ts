@@ -14,22 +14,14 @@ export async function fetchImages(page = 1, limit = 20): Promise<PaginatedRespon
 }
 
 /**
- * 上传图片
+ * 上传图片（改为管理员登录鉴权，不再需要表单里的 adminPassword）
  * @param files 图片文件列表
- * @param serverPassword 管理员密码（可选）
  */
-export async function uploadImages(files: File[], serverPassword?: string) {
+export async function uploadImages(files: File[]) {
   const formData = new FormData()
-  
-  // 添加文件
   files.forEach(file => {
     formData.append('files', file)
   })
-  
-  // 如果有管理员密码，添加到表单
-  if (serverPassword) {
-    formData.append('adminPassword', serverPassword)
-  }
   
   const response = await instance.post<ApiResponse<ImageInfo[]>>('/images/upload', formData, {
     headers: {

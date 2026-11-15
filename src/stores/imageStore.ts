@@ -29,12 +29,12 @@ export const useImageStore = defineStore('image', () => {
   }
   
   // 上传图片
-  async function uploadImages(files: File[], serverPassword?: string) {
+  async function uploadImages(files: File[]) {
     loading.value = true
     error.value = null
     
     try {
-      const response = await apiUploadImages(files, serverPassword)
+      const response = await apiUploadImages(files)
       
       // 上传成功后刷新图片列表
       await fetchImages()

@@ -1,34 +1,104 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useImageStore } from '../stores/imageStore'
+import { cleanupImages } from '../api'
 import ImageCard from '../components/ImageCard.vue'
 
-// 使用 i18n
 const { t } = useI18n()
-
-// 使用图片存储
 const imageStore = useImageStore()
 
-// 状态
 const isLoading = ref(true)
+const page = ref(1)
+const pageSize = 20
 
-// 获取图片列表
-onMounted(async () => {
+const total = computed(() => imageStore.pagination?.totalItems ?? 0)
+const totalPages = computed(() => Math.max(imageStore.pagination?.totalPages ?? 1, 1))
+const rangeStart = computed(() => (total.value === 0 ? 0 : (page.value - 1) * pageSize + 1))
+const rangeEnd = computed(() => Math.min(page.value * pageSize, total.value))
+
+async function load(target = page.value) {
+  page.value = target
+  isLoading.value = true
   try {
-    await imageStore.fetchImages()
+    await imageStore.fetchImages(target, pageSize)
   } catch (error) {
     console.error('Failed to fetch images:', error)
   } finally {
     isLoading.value = false
   }
-})
+}
+
+onMounted(() => load(1))
+
+const prevPage = () => {
+  if (page.value > 1) void load(page.value - 1)
+}
+const nextPage = () => {
+  if (page.value < totalPages.value) void load(page.value + 1)
+}
+
+/** 清理 uploadImage 里非图片文件 + 指向缺失文件的记录（先预览再执行） */
+const cleaning = ref(false)
+async function runCleanup() {
+  if (cleaning.value) return
+  cleaning.value = true
+  try {
+    const preview = await cleanupImages(true, true)
+    const s = preview.summary
+
+    // 按原因归类，确认框里能看出删的是哪几类垃圾
+    const bucket = { ext: 0, broken: 0, tiny: 0 }
+    for (const d of preview.invalidDetails ?? []) {
+      if (d.reason.includes('不在白名单')) bucket.ext += 1
+      else if (d.reason.includes('占位图')) bucket.tiny += 1
+      else bucket.broken += 1
+    }
+
+    const lines = [
+      `上传目录：${preview.uploadDir}`,
+      `磁盘文件 ${s.totalFiles} 个，数据库 ${s.totalRecords} 条`,
+      '',
+      `· 无效文件合计：${s.invalidFiles} 个（将删除文件 + 对应记录）`,
+    ]
+    if (bucket.ext) lines.push(`    - 扩展名不在白名单：${bucket.ext} 个`)
+    if (bucket.broken) lines.push(`    - 文件损坏 / 伪装图片：${bucket.broken} 个`)
+    if (bucket.tiny) lines.push(`    - 1×1 透明占位图：${bucket.tiny} 个`)
+    lines.push(
+      `· 无对应文件的记录：${s.missingRecords} 条（将删除记录）`,
+      `· 无对应记录的文件：${s.orphanFiles} 个（仅报告，不删除）`,
+      '',
+      '确认执行？删除后不可恢复。',
+    )
+
+    const ok = window.confirm(lines.join('\n'))
+    if (!ok) return
+
+    const result = await cleanupImages(false, true)
+    window.alert(
+      `清理完成：删除文件 ${result.deleted.files} 个，删除记录 ${result.deleted.records} 条`,
+    )
+    await load(1)
+  } catch (e) {
+    const msg = (e as { message?: string })?.message ?? String(e)
+    window.alert(`清理失败：${msg}`)
+  } finally {
+    cleaning.value = false
+  }
+}
 </script>
 
 <template>
   <div class="w-full max-w-[1920px] mx-auto">
-    <div class="text-center mb-8">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-8">
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white">{{ t('gallery.title') }}</h1>
+      <button
+        class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+        :disabled="cleaning"
+        @click="runCleanup"
+      >
+        {{ cleaning ? '清理中…' : '清理无效文件' }}
+      </button>
     </div>
 
     <!-- 加载中 -->
@@ -46,10 +116,7 @@ onMounted(async () => {
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
       </svg>
       <p class="mt-3 text-error-500">{{ imageStore.error }}</p>
-      <button
-        @click="imageStore.fetchImages"
-        class="mt-4 btn-primary"
-      >
+      <button @click="load(page)" class="mt-4 btn-primary">
         {{ t('common.retry') }}
       </button>
     </div>
@@ -66,12 +133,39 @@ onMounted(async () => {
     </div>
 
     <!-- 图片网格 -->
-    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 sm:gap-8">
-      <ImageCard
-        v-for="image in imageStore.images"
-        :key="image.id"
-        :image="image"
-      />
-    </div>
+    <template v-else>
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6 sm:gap-8">
+        <ImageCard
+          v-for="image in imageStore.images"
+          :key="image.id"
+          :image="image"
+        />
+      </div>
+
+      <!-- 分页 -->
+      <div class="mt-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm text-gray-600 dark:text-gray-400">
+        <span>
+          共 {{ total }} 张，当前第 {{ rangeStart }}–{{ rangeEnd }} 张
+          <span class="mx-1">·</span>
+          第 {{ page }} / {{ totalPages }} 页
+        </span>
+        <div class="flex items-center gap-2">
+          <button
+            class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="page <= 1 || isLoading"
+            @click="prevPage"
+          >
+            上一页
+          </button>
+          <button
+            class="btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+            :disabled="page >= totalPages || isLoading"
+            @click="nextPage"
+          >
+            下一页
+          </button>
+        </div>
+      </div>
+    </template>
   </div>
 </template>

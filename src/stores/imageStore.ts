@@ -35,13 +35,15 @@ export const useImageStore = defineStore('image', () => {
     
     try {
       const response = await apiUploadImages(files)
-      
-      // 上传成功后刷新图片列表
-      await fetchImages()
-      
+
+      // 上传成功后回到第一页刷新（新图按 createdAt 倒序，必然在最前）
+      await fetchImages(1)
+
+      // 接口返回 { success, message, data: ImageInfo[] }，真正的数组在 data 里
+      const list = response?.data ?? []
       return {
         success: true,
-        urls: response.map(img => img.url)
+        urls: list.map(img => img.url)
       }
     } catch (err: any) {
       console.error('Failed to upload images:', err)
